@@ -3,7 +3,9 @@
 Converts a **RuneLite** bank tag export into the layout string the **official Old School
 RuneScape client and mobile** expect.
 
-Open `index.html` in a browser. No build step, no dependencies, no server — it runs
+**Live: <https://banktag-converter.netlify.app>**
+
+Or open `index.html` in a browser. No build step, no dependencies, no server — it runs
 straight from the filesystem or any static host.
 
 ```
@@ -64,6 +66,7 @@ the RuneLite export to copy across by hand.
 | `converter.js` | The conversion itself — pure, no DOM, usable from Node too |
 | `app.js` | Wires the page to the converter |
 | `converter.test.js` | Tests |
+| `netlify.toml` | Netlify config — publishes the repo root, sets security headers |
 
 ## Tests
 
@@ -79,3 +82,9 @@ linked from the wiki's [Bank tags](https://oldschool.runescape.wiki/w/Bank_tags)
 
 Item images are loaded from `static.runelite.net`; when they are unavailable the page
 falls back to showing the raw item id in each slot.
+
+## Deploying
+
+The site is hosted on Netlify from the repo root with no build step. The current deploy
+was uploaded manually, so it is **not** yet wired to this repository — pushing to `main`
+will not redeploy on its own until the project is linked to GitHub in the Netlify UI.
