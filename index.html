@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank Tag Converter — RuneLite to OSRS Mobile</title>
+<meta name="description" content="Convert a RuneLite bank tag export into the layout string used by the official Old School RuneScape client and mobile.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+<header>
+	<h1>Bank Tag Converter <span class="arrow">→</span></h1>
+	<p class="tagline">Paste a RuneLite bank tag export, get the layout string the official Old School RuneScape client and mobile expect.</p>
+</header>
+
+<section class="panel">
+	<h2>RuneLite export</h2>
+	<textarea id="input" spellcheck="false" autocomplete="off"
+		placeholder="banktags,1,hydra rl,952,layout,1,23075,4,27281"></textarea>
+	<div class="row">
+		<button type="button" id="example">Load example</button>
+		<button type="button" id="clear">Clear</button>
+		<p class="hint">One tag per line. Bank Tag Layouts plugin exports work too.</p>
+	</div>
+</section>
+
+<section class="panel" id="output-panel" hidden>
+	<h2>OSRS Mobile layout</h2>
+	<div id="results"></div>
+	<div class="row">
+		<button type="button" class="primary" id="copy-all">Copy</button>
+	</div>
+</section>
+
+<section class="panel">
+	<h2>How it works</h2>
+	<p class="hint">
+		RuneLite writes <code>banktags,&lt;version&gt;,&lt;name&gt;,&lt;icon&gt;,&lt;items…&gt;</code> followed by
+		<code>layout,&lt;position&gt;,&lt;item&gt;…</code> pairs. The official client wants
+		<code>1,&lt;item count&gt;</code> followed by <code>&lt;item&gt;,&lt;column&gt;,&lt;row&gt;</code> triples,
+		where a bank position splits into <code>position % 8</code> and <code>position / 8</code> across the
+		8-wide bank grid. The tag name and icon are not carried by the string — set those in game when you make the tab.
+	</p>
+</section>
+
+<footer>
+	Item images from <a href="https://static.runelite.net/">static.runelite.net</a>.
+	Format cross-checked against the <a href="https://oldschool.runescape.wiki/w/Bank_tags">OSRS Wiki</a> converter.
+</footer>
+
+</div>
+
+<script src="converter.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

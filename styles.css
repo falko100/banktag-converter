@@ -1,0 +1,218 @@
+:root {
+	--bg: #14161c;
+	--panel: #1c1f27;
+	--panel-raised: #232733;
+	--border: #333947;
+	--text: #e6e8ee;
+	--muted: #98a0b3;
+	--accent: #e0b453;
+	--ok: #7bc47f;
+	--error: #e8736b;
+	--slot: #2a2f3d;
+	--radius: 10px;
+	--mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+	margin: 0;
+	padding: 32px 20px 64px;
+	background: var(--bg);
+	color: var(--text);
+	font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.wrap { max-width: 860px; margin: 0 auto; }
+
+header { margin-bottom: 28px; }
+
+h1 {
+	margin: 0 0 6px;
+	font-size: 1.6rem;
+	letter-spacing: -0.01em;
+}
+
+h1 .arrow { color: var(--accent); }
+
+.tagline { margin: 0; color: var(--muted); }
+
+.panel {
+	background: var(--panel);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 18px;
+	margin-bottom: 18px;
+}
+
+.panel h2 {
+	margin: 0 0 10px;
+	font-size: 0.78rem;
+	text-transform: uppercase;
+	letter-spacing: 0.09em;
+	color: var(--muted);
+	font-weight: 600;
+}
+
+textarea {
+	width: 100%;
+	min-height: 96px;
+	padding: 12px;
+	background: var(--bg);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	font-family: var(--mono);
+	font-size: 13px;
+	line-height: 1.5;
+	resize: vertical;
+}
+
+textarea:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+textarea[readonly] { color: var(--accent); }
+
+.row {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-top: 10px;
+}
+
+button {
+	background: var(--panel-raised);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	padding: 8px 14px;
+	font: inherit;
+	font-size: 14px;
+	cursor: pointer;
+}
+
+button:hover { border-color: var(--accent); }
+button:active { transform: translateY(1px); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #1a1a1a; font-weight: 600; }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; border-color: var(--border); }
+
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+
+.result { border-top: 1px solid var(--border); padding-top: 16px; margin-top: 16px; }
+.result:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+
+.result-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+.tag-name { font-weight: 600; }
+
+/* Sized only once its image loads, so a blocked CDN leaves no empty gap. */
+.tag-icon { display: none; }
+.tag-icon.is-loaded { display: block; }
+.tag-icon img { width: 26px; height: 26px; object-fit: contain; }
+
+.meta { color: var(--muted); font-size: 13px; }
+
+.note {
+	margin: 10px 0 0;
+	padding: 9px 12px;
+	border-left: 3px solid var(--accent);
+	background: var(--panel-raised);
+	border-radius: 0 6px 6px 0;
+	font-size: 13px;
+	color: var(--muted);
+}
+
+.note strong { color: var(--text); }
+
+.error {
+	border-left-color: var(--error);
+	color: var(--error);
+}
+
+.out-line {
+	display: flex;
+	gap: 8px;
+	align-items: flex-start;
+	margin-top: 10px;
+}
+
+.out-line code {
+	flex: 1;
+	display: block;
+	padding: 10px 12px;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	font-family: var(--mono);
+	font-size: 13px;
+	color: var(--accent);
+	word-break: break-all;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(8, minmax(0, 1fr));
+	gap: 4px;
+	max-width: 420px;
+	margin-top: 12px;
+}
+
+.slot {
+	position: relative;
+	aspect-ratio: 1;
+	background: var(--slot);
+	border: 1px solid transparent;
+	border-radius: 5px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.slot.empty { background: transparent; border-color: var(--border); border-style: dashed; }
+
+/* The item id sits underneath and shows through until the icon arrives. */
+.slot .fallback {
+	font-family: var(--mono);
+	font-size: 9px;
+	color: var(--muted);
+	text-align: center;
+	word-break: break-all;
+	padding: 2px;
+}
+
+.slot img {
+	position: absolute;
+	inset: 8%;
+	margin: auto;
+	max-width: 84%;
+	max-height: 84%;
+	opacity: 0;
+	object-fit: contain;
+}
+
+.slot.is-loaded img { opacity: 1; }
+.slot.is-loaded .fallback { visibility: hidden; }
+
+footer {
+	color: var(--muted);
+	font-size: 13px;
+	text-align: center;
+	margin-top: 28px;
+}
+
+footer a { color: var(--accent); }
+
+@media (max-width: 520px) {
+	body { padding: 20px 14px 48px; }
+	.grid { max-width: 100%; }
+}

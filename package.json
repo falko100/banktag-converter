@@ -1,0 +1,11 @@
+{
+  "name": "banktag-converter",
+  "version": "1.0.0",
+  "description": "Convert RuneLite bank tag exports into the OSRS official client / mobile layout format",
+  "license": "MIT",
+  "private": true,
+  "main": "converter.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}
