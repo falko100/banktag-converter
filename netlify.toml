@@ -9,4 +9,6 @@
     Referrer-Policy = "no-referrer"
     # The page has no inline script or style, and the only external requests are
     # the item icons fetched from static.runelite.net.
-    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://static.runelite.net; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    # The reader also loads uploaded screenshots (blob:) and fetches the item
+    # database from this origin.
+    Content-Security-Policy = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://static.runelite.net blob: data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gear Setup Reader — Screenshots to Bank Tag</title>
+<meta name="description" content="Read an Old School RuneScape gear setup from two mobile screenshots and turn it into a bank tag layout.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+<header>
+	<h1>Gear Setup Reader <span class="arrow">→</span></h1>
+	<p class="tagline">Upload a screenshot of your worn equipment and one of your inventory. Line up the grid, and every item is matched against the full item list and laid out as a bank tag.</p>
+	<p class="hint"><a href="index.html">← Back to the RuneLite text converter</a></p>
+	<p class="note error"><strong>Experimental — do not expect it to be right.</strong>
+	On real phone screenshots it currently identifies roughly a quarter to a third of
+	items correctly. It usually gets the <em>kind</em> of item right (a crossbow, a
+	pink potion, a fish) and the exact item wrong, so treat every slot as a first
+	guess to correct rather than an answer. Slots it is unsure about are outlined,
+	but a slot with no outline can still be wrong.</p>
+</header>
+
+<section class="panel">
+	<h2>1 · Screenshots</h2>
+	<div class="uploads">
+		<div class="upload" data-region="equipment">
+			<h3>Worn equipment <span class="meta">3 × 5</span></h3>
+			<input type="file" accept="image/*" id="file-equipment">
+			<div class="stage" id="stage-equipment" hidden>
+				<canvas id="canvas-equipment"></canvas>
+			</div>
+			<p class="hint stage-hint" id="hint-equipment">Choose a screenshot of the Worn Equipment tab.</p>
+		</div>
+		<div class="upload" data-region="inventory">
+			<h3>Inventory <span class="meta">4 × 7</span></h3>
+			<input type="file" accept="image/*" id="file-inventory">
+			<div class="stage" id="stage-inventory" hidden>
+				<canvas id="canvas-inventory"></canvas>
+			</div>
+			<p class="hint stage-hint" id="hint-inventory">Choose a screenshot of the Inventory tab.</p>
+		</div>
+	</div>
+	<div class="row">
+		<button type="button" id="snap">Snap to grid</button>
+		<p class="hint">The box is snapped onto the real grid automatically after each drag.</p>
+	</div>
+	<p class="note">Drag a box around the item grid itself — the slots only, not the panel border or tab row. Drag inside the box to move it, or the corners to resize. The strip below each image shows exactly what is being read: when every item looks centred in its own cell, the box is right.</p>
+</section>
+
+<section class="panel" id="crops-panel" hidden>
+	<h2>2 · What will be read</h2>
+	<div id="crops"></div>
+	<div class="row">
+		<button type="button" class="primary" id="read">Read items</button>
+		<p class="hint" id="read-status"></p>
+	</div>
+</section>
+
+<section class="panel" id="results-panel" hidden>
+	<h2>3 · Matched items</h2>
+	<p class="hint">Click any slot to correct it. Slots the matcher was unsure about are outlined.</p>
+	<div id="results"></div>
+</section>
+
+<section class="panel" id="output-panel" hidden>
+	<h2>4 · Bank tag</h2>
+	<div id="output"></div>
+</section>
+
+<div class="picker" id="picker" hidden>
+	<div class="picker-box">
+		<div class="picker-head">
+			<strong id="picker-title">Choose item</strong>
+			<button type="button" id="picker-close">Close</button>
+		</div>
+		<input type="search" id="picker-search" placeholder="Search all items by name…" autocomplete="off">
+		<div class="picker-list" id="picker-list"></div>
+	</div>
+</div>
+
+<footer>
+	Item images and names from <a href="https://static.runelite.net/">static.runelite.net</a>.
+</footer>
+
+</div>
+
+<script src="converter.js"></script>
+<script src="matcher.js"></script>
+<script src="align.js"></script>
+<script src="gear.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>

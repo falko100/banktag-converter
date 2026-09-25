@@ -67,6 +67,12 @@ the RuneLite export to copy across by hand.
 | `app.js` | Wires the page to the converter |
 | `converter.test.js` | Tests |
 | `netlify.toml` | Netlify config — publishes the repo root, sets security headers |
+| `setup.html` / `setup.js` | Screenshot reader (experimental) |
+| `matcher.js` | Item recognition from a slot crop |
+| `align.js` | Finds the real item grid in a screenshot |
+| `gear.js` | Equipment + inventory to bank grid positions |
+| `tools/` | Rebuilds the item signature database |
+| `data/` | The item signature database |
 
 ## Tests
 
@@ -82,6 +88,50 @@ linked from the wiki's [Bank tags](https://oldschool.runescape.wiki/w/Bank_tags)
 
 Item images are loaded from `static.runelite.net`; when they are unavailable the page
 falls back to showing the raw item id in each slot.
+
+## Screenshot reader (experimental, not working well)
+
+`setup.html` reads a gear setup from two phone screenshots — worn equipment and
+inventory — matches every slot against the full item list, and lays the result out
+as a bank tag. The whole pipeline works: upload, automatic grid detection, crop,
+match, per-slot correction with search, and both output formats.
+
+**It is not accurate enough to rely on.** On real screenshots it gets roughly a
+quarter to a third of slots right. It usually identifies the *kind* of item
+correctly — a crossbow, a pink potion, a fish, a rune pouch — and then picks the
+wrong exact item. It is committed as a foundation, not as a finished feature, and
+is not deployed.
+
+### What was measured
+
+Worth recording, because most of it is counter-intuitive:
+
+- **Alignment dominates everything.** Shifting the grid by 12px — about an eighth
+  of a cell — moved the correct item from rank 2491 to rank 1 and cut its fit
+  error from 62 to 26. No hand-drawn box is that accurate, which is why
+  `align.js` measures the grid from the image instead of trusting the box.
+- **A cell is bigger than the icon in it.** Measured on a real screenshot: a
+  potion 51×69px in a cell of 98.5×84.5, against reference artwork of 22×31
+  inside a 36×32 frame. The icon frame covers ~84% of the cell across, ~88% down.
+  Cropping the whole cell shrinks and pads the item, and matching does not
+  survive that.
+- **Gradient profiles find the grid** reliably, but are periodic, so the offset
+  search has to be anchored near the drawn box or it slips a whole row.
+- **Shape must be compared, but not absolutely.** Colour alone ranks the right
+  item first 0% of the time. On a real varying background, though, everything
+  that differs from the median background reads as foreground, so the query's
+  apparent coverage (0.55) far exceeds the icon's real coverage (0.36) and an
+  absolute shape comparison punishes the correct item.
+- **Widening refinement does not help.** Re-scoring the top 8, 50, 200 or 600
+  candidates at full resolution gives the same answer, so the shortlist is not
+  the bottleneck — the scoring itself prefers the wrong item.
+
+### What it would take
+
+Fine-detail discrimination is the open problem: a capped potion currently scores
+worse than a capless one that is otherwise the same shape and colour. Stacked
+items also carry quantity text drawn over the icon, and the equipment panel draws
+each slot on its own lighter square, neither of which is modelled.
 
 ## Deploying
 

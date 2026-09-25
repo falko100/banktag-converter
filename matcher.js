@@ -40,13 +40,22 @@
 	var SHAPE_WEIGHT = 0.5;         // relative weight of the alpha/shape term
 
 	/*
-	 * Below this share of estimated foreground a slot is probably empty. Measured
-	 * against the icon set: real items sit at 0.22 (a dagger) to 0.65 (boots),
-	 * while an empty slot reads 0.00 over flat backdrops and up to ~0.24 over a
-	 * very noisy one. The two therefore overlap at the extreme, so this marks a
-	 * slot as doubtful for the user to confirm rather than deciding for them.
+	 * Emptiness is judged by how much foreground a slot holds, because that is the
+	 * only signal that separates. Measured over a full screenshot: real items read
+	 * 0.33 to 0.74, empty slots 0.00 to 0.31 - and the worst empties are the ones
+	 * with chat text or bright scenery behind them. Match score and confidence do
+	 * NOT separate at all (items score 7.7-17.9, empties 4.5-20.3), so neither is
+	 * used for this.
+	 *
+	 * The two ranges very nearly touch, and a sparse icon over a busy background
+	 * can cross over, so there are two marks rather than one: below EMPTY the slot
+	 * is taken as empty, and anything below UNCERTAIN is still read but flagged
+	 * for a human to confirm.
 	 */
-	var EMPTY_FOREGROUND = 0.18;
+	var EMPTY_FOREGROUND = 0.12;
+	var UNCERTAIN_FOREGROUND = 0.34;
+	var UNCERTAIN_CONFIDENCE = 0.08;
+	var SAME_NAME_TOLERANCE = 1.25;
 
 	/* Median colour of the slot's outer ring, used as the background estimate. */
 	function estimateBackground(rgba, width, height, ring) {
@@ -231,11 +240,53 @@
 		return !descriptor || descriptor.foreground < EMPTY_FOREGROUND;
 	}
 
+	/* True when a result is worth a human glance before it is trusted. */
+	function needsReview(descriptor, ranked) {
+		if (!descriptor) {
+			return true;
+		}
+		return descriptor.foreground < UNCERTAIN_FOREGROUND ||
+			confidence(ranked || []) < UNCERTAIN_CONFIDENCE;
+	}
+
+	/*
+	 * Several item ids can carry the same name - "Super combat potion(4)" exists
+	 * twice with near-identical icons, for instance. Their icons are not
+	 * byte-identical so they survive as separate entries, and which one wins is
+	 * then down to resampling noise. When the close candidates agree on the name,
+	 * prefer the lowest id, which is the original item rather than a later copy.
+	 */
+	function preferCanonicalName(ranked) {
+		if (ranked.length < 2) {
+			return ranked;
+		}
+
+		var best = ranked[0];
+		var limit = best.score * SAME_NAME_TOLERANCE;
+		var sameName = ranked.filter(function (candidate) {
+			return candidate.name === best.name && candidate.score <= limit;
+		});
+
+		if (sameName.length < 2) {
+			return ranked;
+		}
+
+		var winner = sameName.reduce(function (a, b) { return a.id <= b.id ? a : b; });
+		if (winner === best) {
+			return ranked;
+		}
+
+		return [winner].concat(ranked.filter(function (c) { return c !== winner; }));
+	}
+
 	return {
 		FOREGROUND_DISTANCE: FOREGROUND_DISTANCE,
 		SHAPE_WEIGHT: SHAPE_WEIGHT,
 		EMPTY_FOREGROUND: EMPTY_FOREGROUND,
+		UNCERTAIN_FOREGROUND: UNCERTAIN_FOREGROUND,
 		looksEmpty: looksEmpty,
+		needsReview: needsReview,
+		preferCanonicalName: preferCanonicalName,
 		estimateBackground: estimateBackground,
 		describe: describe,
 		rank: rank,
