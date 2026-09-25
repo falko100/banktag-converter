@@ -7,5 +7,8 @@
   "main": "converter.js",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
   }
 }
