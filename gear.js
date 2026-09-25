@@ -32,20 +32,48 @@
 	var INVENTORY_SLOTS = 28;
 	var INVENTORY_ORIGIN_COLUMN = 4;
 
-	/* Worn equipment, in the order the game's own interface lays them out. */
+	/*
+	 * Worn equipment. `column`/`row` place the item in the bank grid; `fx`/`fy`
+	 * say where the slot sits in a screenshot of the equipment interface, as a
+	 * fraction of the span between the outermost slot centres.
+	 *
+	 * That interface is NOT a uniform grid, which is easy to get wrong: the
+	 * weapon/body/shield and hands/feet/ring rows are spread wider (measured
+	 * pitch 130px) than the cape/neck/ammo row (94px). Rows are evenly spaced.
+	 */
 	var EQUIPMENT_SLOTS = [
-		{ key: 'head', label: 'Head', column: 1, row: 0 },
-		{ key: 'cape', label: 'Cape', column: 0, row: 1 },
-		{ key: 'neck', label: 'Neck', column: 1, row: 1 },
-		{ key: 'ammo', label: 'Ammo', column: 2, row: 1 },
-		{ key: 'weapon', label: 'Weapon', column: 0, row: 2 },
-		{ key: 'body', label: 'Body', column: 1, row: 2 },
-		{ key: 'shield', label: 'Shield', column: 2, row: 2 },
-		{ key: 'legs', label: 'Legs', column: 1, row: 3 },
-		{ key: 'hands', label: 'Hands', column: 0, row: 4 },
-		{ key: 'feet', label: 'Feet', column: 1, row: 4 },
-		{ key: 'ring', label: 'Ring', column: 2, row: 4 }
+		{ key: 'head', label: 'Head', column: 1, row: 0, fx: 0.5, fy: 0 },
+		{ key: 'cape', label: 'Cape', column: 0, row: 1, fx: 0.1385, fy: 0.25 },
+		{ key: 'neck', label: 'Neck', column: 1, row: 1, fx: 0.5, fy: 0.25 },
+		{ key: 'ammo', label: 'Ammo', column: 2, row: 1, fx: 0.8615, fy: 0.25 },
+		{ key: 'weapon', label: 'Weapon', column: 0, row: 2, fx: 0, fy: 0.5 },
+		{ key: 'body', label: 'Body', column: 1, row: 2, fx: 0.5, fy: 0.5 },
+		{ key: 'shield', label: 'Shield', column: 2, row: 2, fx: 1, fy: 0.5 },
+		{ key: 'legs', label: 'Legs', column: 1, row: 3, fx: 0.5, fy: 0.75 },
+		{ key: 'hands', label: 'Hands', column: 0, row: 4, fx: 0, fy: 1 },
+		{ key: 'feet', label: 'Feet', column: 1, row: 4, fx: 0.5, fy: 1 },
+		{ key: 'ring', label: 'Ring', column: 2, row: 4, fx: 1, fy: 1 }
 	];
+
+	/*
+	 * A slot square's size as a fraction of the box bounding all of them, and how
+	 * much of that square the item's own icon frame covers. Measured from a real
+	 * screenshot: 87x85px squares in a 347x463 box, with an ~83px icon frame.
+	 */
+	var EQUIPMENT_SLOT_WIDTH = 87 / 347;
+	var EQUIPMENT_SLOT_HEIGHT = 85 / 463;
+	var EQUIPMENT_ICON_INSET = 0.95;
+
+	/* Where a slot's icon sits inside a drawn equipment box, in image pixels. */
+	function equipmentSlotRect(box, slot) {
+		var slotW = box.w * EQUIPMENT_SLOT_WIDTH;
+		var slotH = box.h * EQUIPMENT_SLOT_HEIGHT;
+		var cx = box.x + slotW / 2 + slot.fx * (box.w - slotW);
+		var cy = box.y + slotH / 2 + slot.fy * (box.h - slotH);
+		var w = slotW * EQUIPMENT_ICON_INSET;
+		var h = slotH * EQUIPMENT_ICON_INSET;
+		return { x: cx - w / 2, y: cy - h / 2, w: w, h: h };
+	}
 
 	function equipmentPosition(key) {
 		for (var i = 0; i < EQUIPMENT_SLOTS.length; i++) {
@@ -123,6 +151,9 @@
 		INVENTORY_SLOTS: INVENTORY_SLOTS,
 		INVENTORY_COLUMNS: INVENTORY_COLUMNS,
 		EQUIPMENT_SLOTS: EQUIPMENT_SLOTS,
+		EQUIPMENT_SLOT_WIDTH: EQUIPMENT_SLOT_WIDTH,
+		EQUIPMENT_SLOT_HEIGHT: EQUIPMENT_SLOT_HEIGHT,
+		equipmentSlotRect: equipmentSlotRect,
 		equipmentPosition: equipmentPosition,
 		inventoryPosition: inventoryPosition,
 		toLayout: toLayout,

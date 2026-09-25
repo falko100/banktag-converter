@@ -29,6 +29,9 @@ const MIN_OPAQUE_PIXELS = 40;   // below this an icon is a placeholder, not an i
 const root = path.resolve(import.meta.dirname, '..');
 const iconDir = path.join(import.meta.dirname, 'icons');
 const namesFile = path.join(import.meta.dirname, 'names.json');
+const mappingFile = path.join(import.meta.dirname, 'mapping.json');
+const volumesFile = path.join(import.meta.dirname, 'volumes.json');
+const slotsFile = path.join(import.meta.dirname, 'slots.json');
 
 if (!fs.existsSync(iconDir)) {
 	console.error('Missing ' + iconDir + ' - run tools/fetch-icons.mjs first.');
@@ -36,6 +39,62 @@ if (!fs.existsSync(iconDir)) {
 }
 
 const names = JSON.parse(fs.readFileSync(namesFile, 'utf8'));
+
+/*
+ * How likely an item is to turn up in somebody's gear setup, 0-255.
+ *
+ * This matters more than it sounds. Matching frequently picks an obscure
+ * lookalike over the real thing by a hair - "Mixture - step 1(3)", a herblore
+ * intermediate, beat Super restore(4) by 2.0; "Kuhu essence" beat Blood rune by
+ * 0.7. Every one of those false winners is untradeable and every true item is
+ * tradeable, so grand exchange presence, graded by trade volume, separates them
+ * cleanly. Items nobody can trade score 0 and get no help.
+ */
+function popularityTable() {
+	var table = Object.create(null);
+	if (!fs.existsSync(mappingFile)) {
+		console.warn('No mapping.json - building without the popularity prior.');
+		return table;
+	}
+
+	const mapping = JSON.parse(fs.readFileSync(mappingFile, 'utf8'));
+	const volumes = fs.existsSync(volumesFile)
+		? (JSON.parse(fs.readFileSync(volumesFile, 'utf8')).data || {})
+		: {};
+
+	for (const entry of mapping) {
+		const volume = Number(volumes[entry.id] || 0);
+		// 0.4 for merely being tradeable, up to 1.0 at ~1M traded per day
+		const score = 0.4 + 0.6 * Math.min(1, Math.log10(volume + 1) / 6);
+		table[entry.id] = Math.round(score * 255);
+	}
+	return table;
+}
+
+const popularity = popularityTable();
+
+/*
+ * Which equipment slot an item can go in, by name. Worn equipment is read slot
+ * by slot, and a head slot can only hold a helmet, so this removes ~95% of the
+ * item list from consideration before matching even starts.
+ */
+export const SLOT_ORDER = ['head', 'cape', 'neck', 'ammo', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'];
+
+function slotTable() {
+	if (!fs.existsSync(slotsFile)) {
+		console.warn('No slots.json - building without equipment slot data.');
+		return {};
+	}
+	const raw = JSON.parse(fs.readFileSync(slotsFile, 'utf8'));
+	const byName = Object.create(null);
+	for (const [name, slot] of Object.entries(raw)) {
+		byName[name.toLowerCase()] = SLOT_ORDER.indexOf(slot) + 1;   // 0 means "not equipment"
+	}
+	return byName;
+}
+
+const slots = slotTable();
+let slotted = 0;
 
 export function signature(rgba, width, height) {
 	const sig = new Uint8Array(CELLS_X * CELLS_Y * 4);
@@ -98,7 +157,16 @@ const blob = Buffer.alloc(entries.length * BYTES_PER_ICON);
 
 entries.forEach((entry, index) => {
 	blob.set(signature(entry.data, ICON_W, ICON_H), index * BYTES_PER_ICON);
-	items.push([entry.id, names[entry.id]]);
+	// Identical icons share one entry, so take the most popular id in the group.
+	let best = 0;
+	for (const id of entry.ids) {
+		best = Math.max(best, popularity[id] || 0);
+	}
+	const slot = slots[String(names[entry.id]).toLowerCase()] || 0;
+	if (slot) {
+		slotted++;
+	}
+	items.push([entry.id, names[entry.id], best, slot]);
 });
 
 const meta = { cellsX: CELLS_X, cellsY: CELLS_Y, iconW: ICON_W, iconH: ICON_H, count: items.length, items };
@@ -109,3 +177,5 @@ const gz = zlib.gzipSync(blob).length, br = zlib.brotliCompressSync(blob).length
 console.log(`icons kept:      ${items.length} (skipped ${skippedEmpty} near-empty)`);
 console.log(`icons.bin:       ${(blob.length / 1e6).toFixed(2)} MB raw, ${(gz / 1e6).toFixed(2)} MB gzip, ${(br / 1e6).toFixed(2)} MB brotli`);
 console.log(`items.json:      ${(fs.statSync(path.join(root, 'data', 'items.json')).size / 1e6).toFixed(2)} MB raw`);
+console.log(`with popularity: ${items.filter((i) => i[2] > 0).length}`);
+console.log(`with a slot:     ${slotted}`);

@@ -13,7 +13,7 @@
 	var ICON_W = 36, ICON_H = 32;
 	var ICON_URL = 'https://static.runelite.net/cache/item/icon/';
 	var SHORTLIST = 25;      // candidates kept from the signature pass
-	var REFINE = 8;          // of those, how many get re-scored at full resolution
+	var REFINE = 25;         // of those, how many get re-scored at full resolution
 	var HANDLE = 14;         // px grab radius for a box corner
 
 	/*
@@ -27,18 +27,15 @@
 	var ICON_INSET_X = 0.84;
 	var ICON_INSET_Y = 0.88;
 
+	/*
+	 * The inventory is a plain 4x7 grid, so its box snaps to the grid measured
+	 * from the image. Worn equipment is not a grid at all - its rows are spread
+	 * to different widths - so it uses the measured slot positions in gear.js and
+	 * is positioned by hand.
+	 */
 	var REGIONS = {
-		equipment: { columns: 3, rows: 5, label: 'Worn equipment' },
-		inventory: { columns: 4, rows: 7, label: 'Inventory' }
-	};
-
-	/* Which cells of the 3x5 equipment grid are real slots. */
-	var EQUIPMENT_CELLS = {
-		'1,0': 'head',
-		'0,1': 'cape', '1,1': 'neck', '2,1': 'ammo',
-		'0,2': 'weapon', '1,2': 'body', '2,2': 'shield',
-		'1,3': 'legs',
-		'0,4': 'hands', '1,4': 'feet', '2,4': 'ring'
+		equipment: { label: 'Worn equipment', kind: 'slots', aspect: 347 / 463 },
+		inventory: { label: 'Inventory', kind: 'grid', columns: 4, rows: 7 }
 	};
 
 	var db = null;
@@ -102,12 +99,16 @@
 	// ------------------------------------------------------------------ images
 
 	function defaultBox(image, region) {
-		// Start from a centred box whose cells are icon-shaped (36x32).
+		// Start from a centred box of roughly the right shape.
 		var height = image.naturalHeight * 0.6;
-		var width = height * (region.columns * ICON_W) / (region.rows * ICON_H);
+		var width = region.kind === 'slots'
+			? height * region.aspect
+			: height * (region.columns * ICON_W) / (region.rows * ICON_H);
 		if (width > image.naturalWidth * 0.9) {
 			width = image.naturalWidth * 0.9;
-			height = width * (region.rows * ICON_H) / (region.columns * ICON_W);
+			height = region.kind === 'slots'
+				? width / region.aspect
+				: width * (region.rows * ICON_H) / (region.columns * ICON_W);
 		}
 		return {
 			x: (image.naturalWidth - width) / 2,
@@ -158,6 +159,19 @@
 		if (!pixels || !state[key].box) {
 			return;
 		}
+
+		if (region.kind === 'slots') {
+			state[key].box = BankTagAlign.refineSlotBox(
+				pixels.data, pixels.width, pixels.height, state[key].box,
+				function (box) {
+					return BankTagGear.EQUIPMENT_SLOTS.map(function (slot) {
+						return BankTagGear.equipmentSlotRect(box, slot);
+					});
+				}
+			);
+			return;
+		}
+
 		state[key].box = BankTagAlign.refineGrid(
 			pixels.data, pixels.width, pixels.height,
 			state[key].box, region.columns, region.rows
@@ -191,19 +205,28 @@
 		ctx.lineWidth = 2;
 		ctx.strokeRect(x, y, w, h);
 
-		ctx.strokeStyle = 'rgba(224, 180, 83, 0.45)';
+		ctx.strokeStyle = 'rgba(224, 180, 83, 0.55)';
 		ctx.lineWidth = 1;
-		for (var c = 1; c < region.columns; c++) {
-			ctx.beginPath();
-			ctx.moveTo(x + w * c / region.columns, y);
-			ctx.lineTo(x + w * c / region.columns, y + h);
-			ctx.stroke();
-		}
-		for (var r = 1; r < region.rows; r++) {
-			ctx.beginPath();
-			ctx.moveTo(x, y + h * r / region.rows);
-			ctx.lineTo(x + w, y + h * r / region.rows);
-			ctx.stroke();
+
+		if (region.kind === 'slots') {
+			// Show each slot where it will actually be read from.
+			cellsOf(key).forEach(function (cell) {
+				var rect = cellRect(key, cell);
+				ctx.strokeRect(rect.x * scale, rect.y * scale, rect.w * scale, rect.h * scale);
+			});
+		} else {
+			for (var c = 1; c < region.columns; c++) {
+				ctx.beginPath();
+				ctx.moveTo(x + w * c / region.columns, y);
+				ctx.lineTo(x + w * c / region.columns, y + h);
+				ctx.stroke();
+			}
+			for (var r = 1; r < region.rows; r++) {
+				ctx.beginPath();
+				ctx.moveTo(x, y + h * r / region.rows);
+				ctx.lineTo(x + w, y + h * r / region.rows);
+				ctx.stroke();
+			}
 		}
 
 		ctx.fillStyle = '#e0b453';
@@ -213,36 +236,49 @@
 		ctx.restore();
 	}
 
-	/* Crops one cell of a region to icon size and returns its pixels. */
-	function cropCell(key, column, row) {
-		var region = REGIONS[key];
+	/* The image-space rectangle a cell reads from. */
+	function cellRect(key, cell) {
 		var box = state[key].box;
+		if (REGIONS[key].kind === 'slots') {
+			return BankTagGear.equipmentSlotRect(box, cell.slot);
+		}
+
+		var region = REGIONS[key];
 		var cellW = box.w / region.columns;
 		var cellH = box.h / region.rows;
 		var iconW = cellW * ICON_INSET_X;
 		var iconH = cellH * ICON_INSET_Y;
+		return {
+			x: box.x + cell.column * cellW + (cellW - iconW) / 2,
+			y: box.y + cell.row * cellH + (cellH - iconH) / 2,
+			w: iconW,
+			h: iconH
+		};
+	}
 
+	/* Crops one cell to icon size and returns its pixels. */
+	function cropCell(key, cell) {
+		var rect = cellRect(key, cell);
 		var canvas = document.createElement('canvas');
 		canvas.width = ICON_W;
 		canvas.height = ICON_H;
 		var ctx = canvas.getContext('2d', { willReadFrequently: true });
 		ctx.imageSmoothingEnabled = true;
-		ctx.drawImage(
-			state[key].image,
-			box.x + column * cellW + (cellW - iconW) / 2,
-			box.y + row * cellH + (cellH - iconH) / 2,
-			iconW, iconH,
-			0, 0, ICON_W, ICON_H
-		);
+		ctx.drawImage(state[key].image, rect.x, rect.y, rect.w, rect.h, 0, 0, ICON_W, ICON_H);
 		return ctx.getImageData(0, 0, ICON_W, ICON_H);
 	}
 
 	function cellsOf(key) {
 		var region = REGIONS[key];
+		if (region.kind === 'slots') {
+			return BankTagGear.EQUIPMENT_SLOTS.map(function (slot, index) {
+				return { slot: slot, key: slot.key, index: index };
+			});
+		}
+
 		var cells = [];
 		for (var row = 0; row < region.rows; row++) {
 			for (var column = 0; column < region.columns; column++) {
-				if (key === 'equipment' && !EQUIPMENT_CELLS[column + ',' + row]) { continue; }
 				cells.push({ column: column, row: row, index: row * region.columns + column });
 			}
 		}
@@ -350,25 +386,35 @@
 			var block = el('div', 'crop-block');
 			block.appendChild(el('h3', null, REGIONS[key].label));
 
-			var strip = el('div', 'crop-strip');
-			strip.style.gridTemplateColumns = 'repeat(' + REGIONS[key].columns + ', 1fr)';
-
 			var region = REGIONS[key];
-			for (var row = 0; row < region.rows; row++) {
-				for (var column = 0; column < region.columns; column++) {
-					var cell = el('div', 'crop-cell');
-					var isSlot = key !== 'equipment' || EQUIPMENT_CELLS[column + ',' + row];
-					if (!isSlot) {
-						cell.className = 'crop-cell blank';
-						strip.appendChild(cell);
+			var columns = region.kind === 'slots' ? 3 : region.columns;
+			var strip = el('div', 'crop-strip');
+			strip.style.gridTemplateColumns = 'repeat(' + columns + ', 1fr)';
+
+			// Equipment slots sit in a 3x5 arrangement with gaps; the bank grid
+			// coordinates on each slot happen to describe exactly that shape.
+			var placed = {};
+			cellsOf(key).forEach(function (cell) {
+				var column = region.kind === 'slots' ? cell.slot.column : cell.column;
+				var row = region.kind === 'slots' ? cell.slot.row : cell.row;
+				placed[column + ',' + row] = cell;
+			});
+
+			var rows = region.kind === 'slots' ? 5 : region.rows;
+			for (var row = 0; row < rows; row++) {
+				for (var column = 0; column < columns; column++) {
+					var cell = placed[column + ',' + row];
+					if (!cell) {
+						strip.appendChild(el('div', 'crop-cell blank'));
 						continue;
 					}
+					var holder = el('div', 'crop-cell');
 					var canvas = el('canvas');
 					canvas.width = ICON_W;
 					canvas.height = ICON_H;
-					canvas.getContext('2d').putImageData(cropCell(key, column, row), 0, 0);
-					cell.appendChild(canvas);
-					strip.appendChild(cell);
+					canvas.getContext('2d').putImageData(cropCell(key, cell), 0, 0);
+					holder.appendChild(canvas);
+					strip.appendChild(holder);
 				}
 			}
 
@@ -382,11 +428,13 @@
 	// ------------------------------------------------------------- recognition
 
 	function identifyCell(key, cell) {
-		var imageData = cropCell(key, cell.column, cell.row);
+		var imageData = cropCell(key, cell);
 		var described = BankTagMatcher.describe(
 			imageData.data, ICON_W, ICON_H, db.meta.cellsX, db.meta.cellsY
 		);
-		var ranked = BankTagMatcher.rank(db, described, SHORTLIST);
+		// For worn equipment, only items that go in that slot are candidates.
+		var options = cell.slot ? { slot: cell.slot.key } : null;
+		var ranked = BankTagMatcher.rank(db, described, SHORTLIST, options);
 		return { described: described, ranked: ranked, imageData: imageData };
 	}
 
@@ -445,7 +493,7 @@
 						review: !empty && BankTagMatcher.needsReview(result.described, ranked)
 					};
 					if (job.key === 'equipment') {
-						matched.equipment[EQUIPMENT_CELLS[job.cell.column + ',' + job.cell.row]] = entry;
+						matched.equipment[job.cell.key] = entry;
 					} else {
 						matched.inventory[job.cell.index] = entry;
 					}
@@ -505,12 +553,15 @@
 			var eq = el('div', 'result-block');
 			eq.appendChild(el('h3', null, 'Worn equipment'));
 			var eqGrid = el('div', 'gear-grid');
+			var bySlot = {};
+			BankTagGear.EQUIPMENT_SLOTS.forEach(function (slot) {
+				bySlot[slot.column + ',' + slot.row] = slot;
+			});
 			for (var row = 0; row < 5; row++) {
 				for (var column = 0; column < 3; column++) {
-					var key = EQUIPMENT_CELLS[column + ',' + row];
-					if (!key) { eqGrid.appendChild(el('div', 'gear-blank')); continue; }
-					var slot = BankTagGear.EQUIPMENT_SLOTS.filter(function (s) { return s.key === key; })[0];
-					eqGrid.appendChild(slotButton(state.matched.equipment[key], slot.label));
+					var slot = bySlot[column + ',' + row];
+					if (!slot) { eqGrid.appendChild(el('div', 'gear-blank')); continue; }
+					eqGrid.appendChild(slotButton(state.matched.equipment[slot.key], slot.label));
 				}
 			}
 			eq.appendChild(eqGrid);

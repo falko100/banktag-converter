@@ -184,3 +184,50 @@ test('rank returns at most the requested number of candidates', () => {
 		assert.ok(ranked[i].score >= ranked[i - 1].score, 'candidates must be sorted best first');
 	}
 });
+
+test('slot filtering only offers items that go in that slot', () => {
+	const withSlot = meta.items.filter((i) => i[3] > 0);
+	assert.ok(withSlot.length > 3000, 'expected equipment slot data in the database');
+
+	const slot = 'ring';
+	const wanted = matcher.SLOT_ORDER.indexOf(slot) + 1;
+	const fixture = FIXTURES.find((f) => f.id === 6585);   // Amulet of fury, a neck item
+	const { described } = identify(renderSlot(fixture.pixels, { seed: 7 }));
+	const ranked = matcher.rank(db, described, 20, { slot });
+
+	assert.ok(ranked.length > 0, 'slot filtering returned nothing');
+	const byId = new Map(meta.items.map((i) => [i[0], i]));
+	for (const candidate of ranked) {
+		assert.strictEqual(byId.get(candidate.id)[3], wanted,
+			`${candidate.name} is not a ${slot} item`);
+	}
+	// and the neck item itself must be excluded from a ring search
+	assert.ok(!ranked.some((c) => c.id === 6585));
+});
+
+test('an unfiltered search still reaches the whole database', () => {
+	const fixture = FIXTURES.find((f) => f.id === 6585);
+	const { ranked } = identify(renderSlot(fixture.pixels, { seed: 7 }));
+	assert.strictEqual(ranked[0].id, 6585);
+});
+
+test('the popularity prior favours items people actually use', () => {
+	// Every item carries a popularity; commonly traded ones must outrank
+	// untradeable lookalikes at equal fit.
+	const superRestore = meta.items.find((i) => i[0] === 3024);
+	const mixture = meta.items.find((i) => i[0] === 10911);
+	assert.ok(superRestore, 'Super restore(4) missing from the database');
+	assert.ok(mixture, 'Mixture - step 1(3) missing from the database');
+	assert.ok(superRestore[2] > 0, 'a tradeable staple should carry popularity');
+	assert.strictEqual(mixture[2], 0, 'an untradeable intermediate should carry none');
+});
+
+test('equipment items are marked with their slot', () => {
+	const byId = new Map(meta.items.map((i) => [i[0], i]));
+	const ring = matcher.SLOT_ORDER.indexOf('ring') + 1;
+	const feet = matcher.SLOT_ORDER.indexOf('feet') + 1;
+	assert.strictEqual(byId.get(11840)[3], feet, 'Dragon boots should be a feet item');
+	assert.strictEqual(byId.get(6585)[3], matcher.SLOT_ORDER.indexOf('neck') + 1);
+	assert.notStrictEqual(byId.get(385)[3], ring, 'a Shark is not a ring');
+	assert.strictEqual(byId.get(385)[3], 0, 'food has no equipment slot');
+});

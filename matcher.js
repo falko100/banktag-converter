@@ -57,6 +57,24 @@
 	var UNCERTAIN_CONFIDENCE = 0.08;
 	var SAME_NAME_TOLERANCE = 1.25;
 
+	/*
+	 * A screenshot is upscaled from the game's own rendering, so a cropped slot is
+	 * softer than the crisp reference artwork. Comparing the two directly charges
+	 * an error along every edge - exactly where items differ most - so the
+	 * prediction is blurred to match before comparing. Measured on a real
+	 * screenshot this cut fit errors by about a quarter across the board.
+	 */
+	var BLUR_PREDICTION = true;
+
+	/*
+	 * Weight given to how commonly an item is actually used (see the database
+	 * builder). Obscure lookalikes otherwise win by a hair: a herblore
+	 * intermediate beat Super restore(4) by 2.0, and "Kuhu essence" beat Blood
+	 * rune by 0.7. At 0.15 those flip to the real items; at 0.30 the prior starts
+	 * overriding good matches, so it sits below that.
+	 */
+	var POPULARITY_WEIGHT = 0.15;
+
 	/* Median colour of the slot's outer ring, used as the background estimate. */
 	function estimateBackground(rgba, width, height, ring) {
 		ring = ring || Math.max(1, Math.round(Math.min(width, height) * 0.06));
@@ -127,6 +145,59 @@
 		};
 	}
 
+	/*
+	 * Equipment slots, in the order the database encodes them. An item entry is
+	 * [id, name, popularity, slot], where slot is 0 for anything that cannot be
+	 * worn and otherwise an index into this list, offset by one.
+	 */
+	var SLOT_ORDER = ['head', 'cape', 'neck', 'ammo', 'weapon', 'body', 'shield', 'legs', 'hands', 'feet', 'ring'];
+
+	/* Popularity is stored 0-255 in the third slot of each item entry. */
+	function popularityOf(entry) {
+		return entry && entry.length > 2 ? entry[2] / 255 : 0;
+	}
+
+	function applyPrior(score, popularity) {
+		return score * (1 - POPULARITY_WEIGHT * popularity);
+	}
+
+	/* Two separable 3-tap passes, which is close enough to the screenshot's softness. */
+	function blur(buffer, width, height) {
+		var out = new Float32Array(buffer.length);
+		var mid = new Float32Array(buffer.length);
+		var x, y, c, d, sum, count, xx, yy;
+
+		for (y = 0; y < height; y++) {
+			for (x = 0; x < width; x++) {
+				for (c = 0; c < 3; c++) {
+					sum = 0; count = 0;
+					for (d = -1; d <= 1; d++) {
+						xx = x + d;
+						if (xx < 0 || xx >= width) { continue; }
+						sum += buffer[(y * width + xx) * 3 + c];
+						count++;
+					}
+					mid[(y * width + x) * 3 + c] = sum / count;
+				}
+			}
+		}
+		for (y = 0; y < height; y++) {
+			for (x = 0; x < width; x++) {
+				for (c = 0; c < 3; c++) {
+					sum = 0; count = 0;
+					for (d = -1; d <= 1; d++) {
+						yy = y + d;
+						if (yy < 0 || yy >= height) { continue; }
+						sum += mid[(yy * width + x) * 3 + c];
+						count++;
+					}
+					out[(y * width + x) * 3 + c] = sum / count;
+				}
+			}
+		}
+		return out;
+	}
+
 	function scoreAgainst(query, blob, offset, cells) {
 		var colour = 0, weightSum = 0, shape = 0;
 
@@ -148,20 +219,36 @@
 
 	/*
 	 * db: { meta: <data/items.json>, blob: Uint8Array of <data/icons.bin> }
+	 * options.slot restricts candidates to items that can be worn in that
+	 * equipment slot, which is by far the strongest constraint available when
+	 * reading worn equipment - a head slot holds one of ~800 helmets rather than
+	 * one of 15,000 items.
+	 *
 	 * Returns the `limit` best candidates, best first.
 	 */
-	function rank(db, descriptor, limit) {
+	function rank(db, descriptor, limit, options) {
 		var meta = db.meta;
 		var cells = meta.cellsX * meta.cellsY;
 		var stride = cells * 4;
 		var query = descriptor.signature;
 		var best = [];
 		var worst = Infinity;
+		var wantSlot = options && options.slot ? SLOT_ORDER.indexOf(options.slot) + 1 : 0;
 
 		for (var i = 0; i < meta.count; i++) {
-			var s = scoreAgainst(query, db.blob, i * stride, cells);
+			if (wantSlot && meta.items[i][3] !== wantSlot) {
+				continue;
+			}
+			var popularity = popularityOf(meta.items[i]);
+			var s = applyPrior(scoreAgainst(query, db.blob, i * stride, cells), popularity);
 			if (best.length < limit || s < worst) {
-				best.push({ index: i, id: meta.items[i][0], name: meta.items[i][1], score: s });
+				best.push({
+					index: i,
+					id: meta.items[i][0],
+					name: meta.items[i][1],
+					popularity: popularity,
+					score: s
+				});
 				best.sort(function (a, b) { return a.score - b.score; });
 				if (best.length > limit) {
 					best.pop();
@@ -187,25 +274,41 @@
 				return { candidate: candidate, score: Infinity };
 			}
 
+			// Composite the candidate over the estimated background, then soften it
+			// the way the screenshot softened the real thing.
+			var predicted = new Float32Array(iconW * iconH * 3);
+			for (var p = 0; p < iconW * iconH; p++) {
+				var ii = p * 4;
+				var a = icon[ii + 3] / 255;
+				for (var c = 0; c < 3; c++) {
+					predicted[p * 3 + c] = icon[ii + c] * a + background[c] * (1 - a);
+				}
+			}
+			if (BLUR_PREDICTION) {
+				predicted = blur(predicted, iconW, iconH);
+			}
+
 			var total = 0, samples = 0;
 			for (var y = 0; y < iconH; y++) {
 				for (var x = 0; x < iconW; x++) {
-					// Nearest-neighbour is enough here; the slot is already resampled to icon size.
+					// Nearest-neighbour is enough here; the slot is already icon-sized.
 					var sx = Math.min(slotW - 1, Math.floor(x * slotW / iconW));
 					var sy = Math.min(slotH - 1, Math.floor(y * slotH / iconH));
-					var si = (sy * slotW + sx) * 4, ii = (y * iconW + x) * 4;
-					var a = icon[ii + 3] / 255;
+					var si = (sy * slotW + sx) * 4;
+					var pi = (y * iconW + x) * 3;
 
-					for (var c = 0; c < 3; c++) {
-						var predicted = icon[ii + c] * a + background[c] * (1 - a);
-						var d = slotRgba[si + c] - predicted;
-						total += d * d;
+					for (var ch = 0; ch < 3; ch++) {
+						var diff = slotRgba[si + ch] - predicted[pi + ch];
+						total += diff * diff;
 						samples++;
 					}
 				}
 			}
 
-			return { candidate: candidate, score: Math.sqrt(total / Math.max(samples, 1)) };
+			return {
+				candidate: candidate,
+				score: applyPrior(Math.sqrt(total / Math.max(samples, 1)), candidate.popularity || 0)
+			};
 		});
 
 		scored.sort(function (a, b) { return a.score - b.score; });
@@ -214,6 +317,7 @@
 			return {
 				id: entry.candidate.id,
 				name: entry.candidate.name,
+				popularity: entry.candidate.popularity || 0,
 				score: entry.score,
 				shortlistScore: entry.candidate.score
 			};
@@ -280,8 +384,10 @@
 	}
 
 	return {
+		SLOT_ORDER: SLOT_ORDER,
 		FOREGROUND_DISTANCE: FOREGROUND_DISTANCE,
 		SHAPE_WEIGHT: SHAPE_WEIGHT,
+		POPULARITY_WEIGHT: POPULARITY_WEIGHT,
 		EMPTY_FOREGROUND: EMPTY_FOREGROUND,
 		UNCERTAIN_FOREGROUND: UNCERTAIN_FOREGROUND,
 		looksEmpty: looksEmpty,

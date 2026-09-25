@@ -89,49 +89,71 @@ linked from the wiki's [Bank tags](https://oldschool.runescape.wiki/w/Bank_tags)
 Item images are loaded from `static.runelite.net`; when they are unavailable the page
 falls back to showing the raw item id in each slot.
 
-## Screenshot reader (experimental, not working well)
+## Screenshot reader
 
 `setup.html` reads a gear setup from two phone screenshots — worn equipment and
 inventory — matches every slot against the full item list, and lays the result out
-as a bank tag. The whole pipeline works: upload, automatic grid detection, crop,
-match, per-slot correction with search, and both output formats.
+as a bank tag. Upload, automatic grid detection, crop, match, per-slot correction
+with search, and both output formats.
 
-**It is not accurate enough to rely on.** On real screenshots it gets roughly a
-quarter to a third of slots right. It usually identifies the *kind* of item
-correctly — a crossbow, a pink potion, a fish, a rune pouch — and then picks the
-wrong exact item. It is committed as a foundation, not as a finished feature, and
-is not deployed.
+**It is an assistant, not an oracle.** On a real screenshot an inventory reads
+fairly well: consumables, food and runes usually come out right. Worn equipment is
+weaker — each slot is narrowed to items that can actually be worn there, so the
+answer is always a real helmet or a real ring, but often the wrong one, with the
+right answer frequently second. Every slot is clickable and the unsure ones are
+outlined.
 
 ### What was measured
 
-Worth recording, because most of it is counter-intuitive:
+Most of this was counter-intuitive, and none of it showed up against synthetic
+test images — only against real phone screenshots:
 
-- **Alignment dominates everything.** Shifting the grid by 12px — about an eighth
-  of a cell — moved the correct item from rank 2491 to rank 1 and cut its fit
-  error from 62 to 26. No hand-drawn box is that accurate, which is why
-  `align.js` measures the grid from the image instead of trusting the box.
-- **A cell is bigger than the icon in it.** Measured on a real screenshot: a
-  potion 51×69px in a cell of 98.5×84.5, against reference artwork of 22×31
-  inside a 36×32 frame. The icon frame covers ~84% of the cell across, ~88% down.
-  Cropping the whole cell shrinks and pads the item, and matching does not
-  survive that.
-- **Gradient profiles find the grid** reliably, but are periodic, so the offset
-  search has to be anchored near the drawn box or it slips a whole row.
+- **Alignment dominates.** Shifting the grid by 12px — an eighth of a cell — moved
+  the correct item from rank 2491 to rank 1 and cut its fit error from 62 to 26.
+  No hand-drawn box is that accurate, so `align.js` measures the grid from the
+  image instead of trusting the box. Gradient profiles find it reliably, but are
+  periodic, so the offset search is anchored near the drawn box or it slips a
+  whole row.
+- **A cell is bigger than the icon in it.** Measured: a potion 51×69px in a cell of
+  98.5×84.5, against reference artwork of 22×31 inside a 36×32 frame. The icon
+  frame covers ~84% of the cell. Cropping the whole cell shrinks and pads the
+  item, and matching does not survive that. A sweep confirmed 0.84 is optimal.
+- **A screenshot is softer than the artwork.** It is upscaled from the game's own
+  rendering, so comparing it against crisp reference icons charges an error along
+  every edge. Blurring the prediction to match cut fit errors by about a quarter
+  and cleaned up whole families of answers.
+- **How common an item is matters as much as how it looks.** Obscure lookalikes
+  kept winning by a hair — a herblore intermediate beat Super restore(4) by 2.0,
+  "Kuhu essence" beat Blood rune by 0.7. Every false winner was untradeable and
+  every true item tradeable, so grand exchange presence graded by trade volume
+  separates them. This one change turned an unreadable inventory into a correct
+  one.
+- **The equipment interface is not a grid.** Its weapon/body/shield and
+  hands/feet/ring rows are spread wider (pitch 130px) than cape/neck/ammo (94px).
+  A uniform 3×5 grid crops the outer columns off their items no matter how it is
+  placed. The measured layout lives in `gear.js`.
+- **Equipment slots are the strongest constraint there is.** A head slot holds one
+  of ~800 helmets rather than one of 15,398 items. Taken from the wiki's own
+  category listings, this alone turned equipment from nonsense into plausible
+  gear.
 - **Shape must be compared, but not absolutely.** Colour alone ranks the right
   item first 0% of the time. On a real varying background, though, everything
-  that differs from the median background reads as foreground, so the query's
-  apparent coverage (0.55) far exceeds the icon's real coverage (0.36) and an
-  absolute shape comparison punishes the correct item.
-- **Widening refinement does not help.** Re-scoring the top 8, 50, 200 or 600
-  candidates at full resolution gives the same answer, so the shortlist is not
-  the bottleneck — the scoring itself prefers the wrong item.
+  differing from the median background reads as foreground, so apparent coverage
+  (0.55) far exceeds the icon's real coverage (0.36).
+- **Some things did not help**, and are recorded so they are not retried:
+  bounding-box normalisation (worse), centroid alignment (offsets were already
+  zero), background estimated from corners or the whole crop rather than the
+  border ring (no change), and widening full-resolution re-scoring from 8 to 600
+  candidates (identical answers — the shortlist was never the bottleneck).
 
-### What it would take
+### Known gaps
 
-Fine-detail discrimination is the open problem: a capped potion currently scores
-worse than a capless one that is otherwise the same shape and colour. Stacked
-items also carry quantity text drawn over the icon, and the equipment panel draws
-each slot on its own lighter square, neither of which is modelled.
+- Empty equipment slots draw a grey placeholder silhouette, which has real
+  foreground, so they read as an item rather than as empty.
+- Stacked items carry quantity text drawn over the icon, which corrupts the crop —
+  the two runes in the test screenshot score far worse than everything else.
+- Fine detail still separates poorly: a capped potion can score worse than an
+  otherwise identical capless one.
 
 ## Deploying
 

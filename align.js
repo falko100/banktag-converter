@@ -159,8 +159,94 @@
 		};
 	}
 
+	/*
+	 * Nudges a box whose slots are NOT a uniform grid - worn equipment, whose rows
+	 * are spread to different widths - so that each slot's contents sit centred in
+	 * the region read from it.
+	 *
+	 * The grid search above cannot be used, because the equipment panel draws each
+	 * slot on its own lighter square: its strongest edges lie ON the cell
+	 * boundaries rather than in the gaps, which inverts that objective. Instead
+	 * this scores an alignment by how much of each slot's detail falls in the
+	 * middle of the slot rather than around its edge, which is what being
+	 * correctly centred means.
+	 *
+	 * `rects(box)` returns the image-space rectangle of every slot for a box.
+	 */
+	function refineSlotBox(rgba, width, height, box, rects) {
+		var OFFSETS = [-12, -9, -6, -3, 0, 3, 6, 9, 12];
+		var SCALES = [0.94, 0.97, 1, 1.03, 1.06];
+		var best = null;
+
+		function detail(rect) {
+			// Compare mean absolute deviation in the middle against the border.
+			var samples = 8;
+			var inner = 0, outer = 0, innerN = 0, outerN = 0;
+			var mean = 0, n = 0;
+			var values = [];
+
+			for (var sy = 0; sy < samples; sy++) {
+				for (var sx = 0; sx < samples; sx++) {
+					var px = Math.round(rect.x + (sx + 0.5) * rect.w / samples);
+					var py = Math.round(rect.y + (sy + 0.5) * rect.h / samples);
+					if (px < 0 || py < 0 || px >= width || py >= height) {
+						values.push(null);
+						continue;
+					}
+					var i = (py * width + px) * 4;
+					var v = (rgba[i] + rgba[i + 1] + rgba[i + 2]) / 3;
+					values.push(v);
+					mean += v;
+					n++;
+				}
+			}
+			if (!n) {
+				return 0;
+			}
+			mean /= n;
+
+			for (var k = 0; k < values.length; k++) {
+				if (values[k] === null) {
+					continue;
+				}
+				var gx = k % samples, gy = Math.floor(k / samples);
+				var edge = gx === 0 || gy === 0 || gx === samples - 1 || gy === samples - 1;
+				var deviation = Math.abs(values[k] - mean);
+				if (edge) { outer += deviation; outerN++; } else { inner += deviation; innerN++; }
+			}
+
+			return (innerN ? inner / innerN : 0) - (outerN ? outer / outerN : 0);
+		}
+
+		for (var si = 0; si < SCALES.length; si++) {
+			for (var yi = 0; yi < OFFSETS.length; yi++) {
+				for (var xi = 0; xi < OFFSETS.length; xi++) {
+					var scale = SCALES[si];
+					var candidate = {
+						x: box.x + OFFSETS[xi] + box.w * (1 - scale) / 2,
+						y: box.y + OFFSETS[yi] + box.h * (1 - scale) / 2,
+						w: box.w * scale,
+						h: box.h * scale
+					};
+
+					var score = 0;
+					var list = rects(candidate);
+					for (var r = 0; r < list.length; r++) {
+						score += detail(list[r]);
+					}
+					if (!best || score > best.score) {
+						best = { score: score, box: candidate };
+					}
+				}
+			}
+		}
+
+		return best ? best.box : box;
+	}
+
 	return {
 		PITCH_TOLERANCE: PITCH_TOLERANCE,
-		refineGrid: refineGrid
+		refineGrid: refineGrid,
+		refineSlotBox: refineSlotBox
 	};
 }));
