@@ -170,12 +170,18 @@ entries.forEach((entry, index) => {
 });
 
 const meta = { cellsX: CELLS_X, cellsY: CELLS_Y, iconW: ICON_W, iconH: ICON_H, count: items.length, items };
+/*
+ * Shipped gzipped and unpacked in the browser. Hosts do not compress
+ * application/octet-stream, so serving the raw blob would send 2.6MB where 1MB
+ * will do - and this is a tool people use on a phone.
+ */
+const packed = zlib.gzipSync(blob, { level: 9 });
 fs.writeFileSync(path.join(root, 'data', 'items.json'), JSON.stringify(meta));
-fs.writeFileSync(path.join(root, 'data', 'icons.bin'), blob);
+fs.writeFileSync(path.join(root, 'data', 'icons.bin.gz'), packed);
+fs.rmSync(path.join(root, 'data', 'icons.bin'), { force: true });
 
-const gz = zlib.gzipSync(blob).length, br = zlib.brotliCompressSync(blob).length;
 console.log(`icons kept:      ${items.length} (skipped ${skippedEmpty} near-empty)`);
-console.log(`icons.bin:       ${(blob.length / 1e6).toFixed(2)} MB raw, ${(gz / 1e6).toFixed(2)} MB gzip, ${(br / 1e6).toFixed(2)} MB brotli`);
+console.log(`icons.bin.gz:    ${(packed.length / 1e6).toFixed(2)} MB (from ${(blob.length / 1e6).toFixed(2)} MB raw)`);
 console.log(`items.json:      ${(fs.statSync(path.join(root, 'data', 'items.json')).size / 1e6).toFixed(2)} MB raw`);
 console.log(`with popularity: ${items.filter((i) => i[2] > 0).length}`);
 console.log(`with a slot:     ${slotted}`);

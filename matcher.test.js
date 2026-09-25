@@ -9,7 +9,8 @@ const matcher = require('./matcher.js');
 
 const ICON_W = 36, ICON_H = 32;
 const meta = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'items.json'), 'utf8'));
-const blob = new Uint8Array(fs.readFileSync(path.join(__dirname, 'data', 'icons.bin')));
+const zlib = require('node:zlib');
+const blob = new Uint8Array(zlib.gunzipSync(fs.readFileSync(path.join(__dirname, 'data', 'icons.bin.gz'))));
 const db = { meta, blob };
 
 const FIXTURES = fs.readdirSync(path.join(__dirname, 'test', 'fixtures', 'icons'))

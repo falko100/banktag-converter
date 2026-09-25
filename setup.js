@@ -58,14 +58,34 @@
 
 	// ---------------------------------------------------------------- database
 
+	/*
+	 * The signature blob ships gzipped and is unpacked here: hosts do not compress
+	 * application/octet-stream, so the raw file would be 2.6MB over the wire
+	 * instead of 1MB. Unpacking in the page rather than relying on transfer
+	 * encoding also keeps it working when the page is opened from a file.
+	 */
+	function loadSignatures() {
+		return fetch('data/icons.bin.gz').then(function (response) {
+			if (!response.ok) {
+				throw new Error('HTTP ' + response.status);
+			}
+			if (typeof DecompressionStream === 'undefined') {
+				throw new Error('this browser cannot unpack the item database');
+			}
+			return new Response(
+				response.body.pipeThrough(new DecompressionStream('gzip'))
+			).arrayBuffer();
+		});
+	}
+
 	function loadDatabase() {
 		if (db) { return Promise.resolve(db); }
 		return Promise.all([
 			fetch('data/items.json').then(function (r) { return r.json(); }),
-			fetch('data/icons.bin').then(function (r) { return r.arrayBuffer(); })
+			loadSignatures()
 		]).then(function (parts) {
 			db = { meta: parts[0], blob: new Uint8Array(parts[1]) };
-			itemName = new Map(db.meta.items);
+			itemName = new Map(db.meta.items.map(function (item) { return [item[0], item[1]]; }));
 			return db;
 		});
 	}

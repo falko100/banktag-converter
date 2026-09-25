@@ -72,7 +72,7 @@ the RuneLite export to copy across by hand.
 | `align.js` | Finds the real item grid in a screenshot |
 | `gear.js` | Equipment + inventory to bank grid positions |
 | `tools/` | Rebuilds the item signature database |
-| `data/` | The item signature database |
+| `data/` | The item signature database (gzipped, unpacked in the browser) |
 
 ## Tests
 
