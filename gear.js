@@ -60,6 +60,35 @@
 	 * much of that square the item's own icon frame covers. Measured from a real
 	 * screenshot: 87x85px squares in a 347x463 box, with an ~83px icon frame.
 	 */
+	/*
+	 * Where the equipment panel sits relative to the inventory grid, measured in
+	 * inventory cell pitches.
+	 *
+	 * Switching tabs does not move the panel: both are drawn into the same area at
+	 * the same UI scale, so the inventory grid - which detects reliably - gives the
+	 * equipment box outright. That beats searching for it. Searching gets the
+	 * region right but leaves the vertical placement 12-24px out, a quarter of a
+	 * slot, because the row of buttons below the equipment slots drags every
+	 * scoring function downwards. Derived this way it lands within ~1.5px.
+	 */
+	var EQUIPMENT_FROM_INVENTORY = {
+		offsetX: 0.2048,
+		offsetY: -0.1611,
+		width: 3.4752,
+		height: 5.5147
+	};
+
+	function equipmentBoxFromInventory(inventoryBox, columns, rows) {
+		var pitchX = inventoryBox.w / columns;
+		var pitchY = inventoryBox.h / rows;
+		return {
+			x: inventoryBox.x + EQUIPMENT_FROM_INVENTORY.offsetX * pitchX,
+			y: inventoryBox.y + EQUIPMENT_FROM_INVENTORY.offsetY * pitchY,
+			w: EQUIPMENT_FROM_INVENTORY.width * pitchX,
+			h: EQUIPMENT_FROM_INVENTORY.height * pitchY
+		};
+	}
+
 	var EQUIPMENT_SLOT_WIDTH = 87 / 347;
 	var EQUIPMENT_SLOT_HEIGHT = 85 / 463;
 	var EQUIPMENT_ICON_INSET = 0.95;
@@ -165,6 +194,8 @@
 		INVENTORY_COLUMNS: INVENTORY_COLUMNS,
 		EQUIPMENT_SLOTS: EQUIPMENT_SLOTS,
 		EQUIPMENT_GAPS: EQUIPMENT_GAPS,
+		EQUIPMENT_FROM_INVENTORY: EQUIPMENT_FROM_INVENTORY,
+		equipmentBoxFromInventory: equipmentBoxFromInventory,
 		EQUIPMENT_ICON_INSET: EQUIPMENT_ICON_INSET,
 		EQUIPMENT_SLOT_WIDTH: EQUIPMENT_SLOT_WIDTH,
 		EQUIPMENT_SLOT_HEIGHT: EQUIPMENT_SLOT_HEIGHT,

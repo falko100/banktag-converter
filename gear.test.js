@@ -133,3 +133,39 @@ test('slot rectangles do not overlap each other', () => {
 		}
 	}
 });
+
+test('the equipment panel is derived from the inventory grid', () => {
+	// Measured together off one phone: this inventory grid sits alongside this
+	// equipment panel. Switching tabs does not move the panel, so one gives the
+	// other. Searching for the panel instead leaves it a quarter of a slot out.
+	const inventory = { x: 1747.1, y: 498, w: 399.4, h: 587.7 };
+	const box = gear.equipmentBoxFromInventory(inventory, 4, 7);
+
+	assert.ok(Math.abs(box.x - 1767.5) < 1.5, `x was ${box.x.toFixed(1)}, expected ~1767.5`);
+	assert.ok(Math.abs(box.y - 484.5) < 1.5, `y was ${box.y.toFixed(1)}, expected ~484.5`);
+	assert.ok(Math.abs(box.w - 347) < 1.5, `w was ${box.w.toFixed(1)}, expected ~347`);
+	assert.ok(Math.abs(box.h - 463) < 1.5, `h was ${box.h.toFixed(1)}, expected ~463`);
+});
+
+test('the derived equipment panel scales with the screenshot', () => {
+	const inventory = { x: 100, y: 200, w: 400, h: 588 };
+	const single = gear.equipmentBoxFromInventory(inventory, 4, 7);
+	const doubled = gear.equipmentBoxFromInventory(
+		{ x: 200, y: 400, w: 800, h: 1176 }, 4, 7
+	);
+
+	assert.ok(Math.abs(doubled.w / single.w - 2) < 1e-9);
+	assert.ok(Math.abs(doubled.h / single.h - 2) < 1e-9);
+	assert.ok(Math.abs(doubled.x / single.x - 2) < 1e-6);
+});
+
+test('derived slots land inside the derived panel', () => {
+	const box = gear.equipmentBoxFromInventory({ x: 1747.1, y: 498, w: 399.4, h: 587.7 }, 4, 7);
+	for (const slot of gear.EQUIPMENT_SLOTS) {
+		const rect = gear.equipmentSlotRect(box, slot);
+		assert.ok(rect.x >= box.x - 0.001 && rect.x + rect.w <= box.x + box.w + 0.001,
+			`${slot.key} runs outside the panel horizontally`);
+		assert.ok(rect.y >= box.y - 0.001 && rect.y + rect.h <= box.y + box.h + 0.001,
+			`${slot.key} runs outside the panel vertically`);
+	}
+});

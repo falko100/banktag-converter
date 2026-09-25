@@ -168,10 +168,17 @@ scores 22.8 against 6.9, while the patch of chat text that otherwise wins manage
 a factor of thirteen. That measure finds the panel but is too jagged to align it,
 so a gentler centring score does the final nudge.
 
-Scale is the one thing the equipment search cannot pin down alone. The client
-draws both panels at the same size, so the pitch measured in the inventory
-screenshot tells it how big an equipment slot must be, and the equipment search is
-redone once the inventory has been read.
+In the end the equipment panel is not searched for at all. Switching tabs does not
+move it — both panels are drawn into the same area at the same UI scale — so the
+inventory grid gives the equipment box outright, and it lands within ~1.5px.
+Searching does worse: it finds the region and (given the inventory's scale) the
+right size, but leaves the vertical placement 12–24px out, a quarter of a slot,
+because the row of buttons under the equipment slots drags every scoring function
+downwards. Probing the quiet margins above the head slot and below the feet row
+fixes the downward pull and the slot-square borders fix the horizontal placement,
+but no combination of them peaked at the true vertical position. Deriving it is
+both simpler and exact. The search survives only as a fallback for a lone
+equipment screenshot.
 
 ### Known gaps
 
@@ -181,9 +188,8 @@ redone once the inventory has been read.
   the two runes in the test screenshot score far worse than everything else.
 - Fine detail still separates poorly: a capped potion can score worse than an
   otherwise identical capless one.
-- Equipment detection reliably finds the panel but lands a few percent off on
-  size, which costs accuracy in a half that was already the weaker one. Dragging
-  the box by hand there still does better.
+- An equipment screenshot uploaded on its own, with no inventory to derive the
+  panel from, falls back to searching for it and is placed less accurately.
 
 ## Deploying
 

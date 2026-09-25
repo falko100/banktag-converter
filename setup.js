@@ -186,11 +186,28 @@
 	}
 
 	/*
-	 * How wide one item icon is, in image pixels, taken from the inventory grid.
-	 * The client draws both panels at the same size, so this pins down how big the
-	 * equipment panel must be - without it that search has nothing to fix its
-	 * scale and settles on whatever is busiest, usually a patch of chat text.
+	 * The equipment panel derived from the inventory grid, when one has been read
+	 * from a screenshot of the same size. Switching tabs does not move the panel,
+	 * so this is exact - and far better than searching for it, which leaves the
+	 * vertical placement a quarter of a slot out.
 	 */
+	function equipmentFromInventory() {
+		var inventory = state.inventory;
+		var equipment = state.equipment;
+		if (!inventory.detected || !inventory.box || !inventory.pixels || !equipment.pixels) {
+			return null;
+		}
+		// Only if both shots came off the same screen.
+		if (inventory.pixels.width !== equipment.pixels.width ||
+			inventory.pixels.height !== equipment.pixels.height) {
+			return null;
+		}
+		return BankTagGear.equipmentBoxFromInventory(
+			inventory.box, REGIONS.inventory.columns, REGIONS.inventory.rows
+		);
+	}
+
+	/* Icon width in image pixels, used to fix the scale of a fallback search. */
 	function knownIconWidth() {
 		var inventory = state.inventory;
 		if (!inventory.detected || !inventory.box) {
@@ -207,15 +224,18 @@
 
 		if (pixels) {
 			if (region.kind === 'slots') {
-				var iconWidth = knownIconWidth();
-				found = BankTagAlign.detectSlotBox(
-					pixels.data, pixels.width, pixels.height, equipmentProbes, region.aspect,
-					iconWidth ? {
-						iconWidth: iconWidth,
-						slotWidthFraction: BankTagGear.EQUIPMENT_SLOT_WIDTH,
-						iconInset: BankTagGear.EQUIPMENT_ICON_INSET
-					} : null
-				);
+				found = equipmentFromInventory();
+				if (!found) {
+					// No inventory to go on, so fall back to searching for the panel.
+					var iconWidth = knownIconWidth();
+					found = BankTagAlign.detectSlotBox(
+						pixels.data, pixels.width, pixels.height, equipmentProbes, region.aspect,
+						iconWidth ? {
+							fixedWidth: iconWidth /
+								(BankTagGear.EQUIPMENT_SLOT_WIDTH * BankTagGear.EQUIPMENT_ICON_INSET)
+						} : null
+					);
+				}
 			} else {
 				found = BankTagAlign.detectGrid(
 					pixels.data, pixels.width, pixels.height, region.columns, region.rows
@@ -234,10 +254,9 @@
 		drawStage(key);
 		refreshCrops();
 
-		// The equipment search needs the inventory's scale, so redo it once that
-		// becomes available.
-		if (key === 'inventory' && state.equipment.image && !state.equipment.scaled) {
-			state.equipment.scaled = true;
+		// The equipment panel is derived from the inventory, so redo it whenever a
+		// fresh inventory grid arrives.
+		if (key === 'inventory' && state.equipment.image) {
 			setTimeout(function () { detect('equipment'); }, 16);
 		}
 	}

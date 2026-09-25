@@ -173,14 +173,16 @@
 	 *
 	 * `rects(box)` returns the image-space rectangle of every slot for a box.
 	 */
-	function refineSlotBox(rgba, width, height, box, probes) {
+	function refineSlotBox(rgba, width, height, box, probes, lockScale) {
 		var OFFSETS = [];
-		for (var o = -16; o <= 16; o += 2) {
+		for (var o = -14; o <= 14; o += 1) {
 			OFFSETS.push(o);
 		}
-		var SCALES = [];
-		for (var sc = 0.90; sc <= 1.1001; sc += 0.01) {
-			SCALES.push(sc);
+		var SCALES = lockScale ? [1] : [];
+		if (!lockScale) {
+			for (var sc = 0.90; sc <= 1.1001; sc += 0.01) {
+				SCALES.push(sc);
+			}
 		}
 
 		var energy = energyMap(rgba, width, height);
@@ -481,30 +483,39 @@
 		var ii = integralOf(small);
 
 		var best = null;
-		var minW = Math.max(80, width * 0.06);
-		var maxW = Math.min(width, height * aspect);
+		var widths = [];
 
-		var iconWidth = options && options.iconWidth;
-		if (iconWidth) {
-			// box.w * slotWidthFraction * iconInset = iconWidth
-			var expected = iconWidth / (options.slotWidthFraction * options.iconInset);
-			minW = Math.max(minW, expected * 0.85);
-			maxW = Math.min(maxW, expected * 1.15);
+		if (options && options.fixedWidth) {
+			/*
+			 * Both panels are drawn at one UI scale, so once the inventory grid is
+			 * known the equipment panel's size follows from it exactly and only its
+			 * position is in question. Searching the size as well is what put the
+			 * box a few percent out: every slot then samples past its own square,
+			 * which shows up as the panel's edge creeping into the outer crops.
+			 */
+			widths.push(options.fixedWidth);
+		} else {
+			var minW = Math.max(80, width * 0.06);
+			var maxW = Math.min(width, height * aspect);
+			if (maxW <= minW) {
+				return null;
+			}
+			var widthStep = Math.max(2, (maxW - minW) / 40);
+			for (var w = minW; w <= maxW; w += widthStep) {
+				widths.push(w);
+			}
 		}
-		if (maxW <= minW) {
-			return null;
-		}
-		var widthStep = Math.max(2, (maxW - minW) / 40);
 
-		for (var w = minW; w <= maxW; w += widthStep) {
-			var h = w / aspect;
-			if (h > height) {
+		for (var wi = 0; wi < widths.length; wi++) {
+			var boxW = widths[wi];
+			var boxH = boxW / aspect;
+			if (boxH > height || boxW > width) {
 				continue;
 			}
-			var step = Math.max(3, w / 48);
-			for (var x = 0; x + w <= width; x += step) {
-				for (var y = 0; y + h <= height; y += step) {
-					var box = { x: x, y: y, w: w, h: h };
+			var step = Math.max(2, boxW / 90);
+			for (var x = 0; x + boxW <= width; x += step) {
+				for (var y = 0; y + boxH <= height; y += step) {
+					var box = { x: x, y: y, w: boxW, h: boxH };
 					var s = slotFitScore(ii, factor, probes(box));
 					if (!best || s > best.score) {
 						best = { score: s, box: box };
@@ -513,7 +524,11 @@
 			}
 		}
 
-		return best ? refineSlotBox(rgba, width, height, best.box, probes) : null;
+		if (!best) {
+			return null;
+		}
+		var lockScale = !!(options && options.fixedWidth);
+		return refineSlotBox(rgba, width, height, best.box, probes, lockScale);
 	}
 
 	return {
