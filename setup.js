@@ -42,8 +42,8 @@
 	var itemName = null;         // Map id -> name
 	var iconCache = {};          // id -> Uint8ClampedArray | null
 	var state = {
-		equipment: { image: null, box: null, pixels: null },
-		inventory: { image: null, box: null, pixels: null },
+		equipment: { image: null, box: null, pixels: null, detected: false, scaled: false },
+		inventory: { image: null, box: null, pixels: null, detected: false },
 		picking: null
 	};
 
@@ -146,11 +146,11 @@
 			state[key].image = img;
 			state[key].pixels = readPixels(img);
 			state[key].box = defaultBox(img, REGIONS[key]);
-			snapToGrid(key);
 			byId('stage-' + key).hidden = false;
-			byId('hint-' + key).textContent = 'Drag the box over the item grid.';
+			byId('hint-' + key).textContent = 'Looking for the grid…';
 			drawStage(key);
-			refreshCrops();
+			// Let that paint before the search, which takes a second or two.
+			setTimeout(function () { detect(key); }, 16);
 		};
 		img.onerror = function () {
 			URL.revokeObjectURL(url);
@@ -173,6 +173,75 @@
 		}
 	}
 
+	/* Slot rectangles plus the four holes between them, for the aligner. */
+	function equipmentProbes(box) {
+		return {
+			slots: BankTagGear.EQUIPMENT_SLOTS.map(function (slot) {
+				return BankTagGear.equipmentSlotRect(box, slot);
+			}),
+			gaps: BankTagGear.EQUIPMENT_GAPS.map(function (gap) {
+				return BankTagGear.equipmentSlotRect(box, gap);
+			})
+		};
+	}
+
+	/*
+	 * How wide one item icon is, in image pixels, taken from the inventory grid.
+	 * The client draws both panels at the same size, so this pins down how big the
+	 * equipment panel must be - without it that search has nothing to fix its
+	 * scale and settles on whatever is busiest, usually a patch of chat text.
+	 */
+	function knownIconWidth() {
+		var inventory = state.inventory;
+		if (!inventory.detected || !inventory.box) {
+			return 0;
+		}
+		return (inventory.box.w / REGIONS.inventory.columns) * ICON_INSET_X;
+	}
+
+	/* Finds the grid from scratch, with no help from the drawn box. */
+	function detect(key) {
+		var region = REGIONS[key];
+		var pixels = state[key].pixels;
+		var found = null;
+
+		if (pixels) {
+			if (region.kind === 'slots') {
+				var iconWidth = knownIconWidth();
+				found = BankTagAlign.detectSlotBox(
+					pixels.data, pixels.width, pixels.height, equipmentProbes, region.aspect,
+					iconWidth ? {
+						iconWidth: iconWidth,
+						slotWidthFraction: BankTagGear.EQUIPMENT_SLOT_WIDTH,
+						iconInset: BankTagGear.EQUIPMENT_ICON_INSET
+					} : null
+				);
+			} else {
+				found = BankTagAlign.detectGrid(
+					pixels.data, pixels.width, pixels.height, region.columns, region.rows
+				);
+			}
+		}
+
+		if (found) {
+			state[key].box = found;
+			state[key].detected = true;
+		}
+		byId('hint-' + key).textContent = found
+			? 'Found it. Drag to adjust if the crops below look off.'
+			: 'Could not find the grid — drag a box around it.';
+
+		drawStage(key);
+		refreshCrops();
+
+		// The equipment search needs the inventory's scale, so redo it once that
+		// becomes available.
+		if (key === 'inventory' && state.equipment.image && !state.equipment.scaled) {
+			state.equipment.scaled = true;
+			setTimeout(function () { detect('equipment'); }, 16);
+		}
+	}
+
 	function snapToGrid(key) {
 		var region = REGIONS[key];
 		var pixels = state[key].pixels;
@@ -182,12 +251,7 @@
 
 		if (region.kind === 'slots') {
 			state[key].box = BankTagAlign.refineSlotBox(
-				pixels.data, pixels.width, pixels.height, state[key].box,
-				function (box) {
-					return BankTagGear.EQUIPMENT_SLOTS.map(function (slot) {
-						return BankTagGear.equipmentSlotRect(box, slot);
-					});
-				}
+				pixels.data, pixels.width, pixels.height, state[key].box, equipmentProbes
 			);
 			return;
 		}
@@ -773,11 +837,14 @@
 	byId('snap').addEventListener('click', function () {
 		Object.keys(REGIONS).forEach(function (key) {
 			if (state[key].image) {
-				snapToGrid(key);
-				drawStage(key);
+				byId('hint-' + key).textContent = 'Looking for the grid…';
 			}
 		});
-		refreshCrops();
+		setTimeout(function () {
+			Object.keys(REGIONS).forEach(function (key) {
+				if (state[key].image) { detect(key); }
+			});
+		}, 16);
 	});
 	byId('picker-close').addEventListener('click', closePicker);
 	byId('picker-search').addEventListener('input', function (event) {

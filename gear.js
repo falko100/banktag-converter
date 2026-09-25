@@ -64,6 +64,19 @@
 	var EQUIPMENT_SLOT_HEIGHT = 85 / 463;
 	var EQUIPMENT_ICON_INSET = 0.95;
 
+	/*
+	 * The four holes in the 3x5 arrangement - beside the head slot and beside the
+	 * legs slot. Nothing is ever drawn there, which is what makes the equipment
+	 * panel recognisable: finding it means finding a position where all eleven
+	 * slots hold something and these four hold nothing.
+	 */
+	var EQUIPMENT_GAPS = [
+		{ key: 'gap-top-left', fx: 0.1385, fy: 0 },
+		{ key: 'gap-top-right', fx: 0.8615, fy: 0 },
+		{ key: 'gap-low-left', fx: 0.1385, fy: 0.75 },
+		{ key: 'gap-low-right', fx: 0.8615, fy: 0.75 }
+	];
+
 	/* Where a slot's icon sits inside a drawn equipment box, in image pixels. */
 	function equipmentSlotRect(box, slot) {
 		var slotW = box.w * EQUIPMENT_SLOT_WIDTH;
@@ -151,6 +164,8 @@
 		INVENTORY_SLOTS: INVENTORY_SLOTS,
 		INVENTORY_COLUMNS: INVENTORY_COLUMNS,
 		EQUIPMENT_SLOTS: EQUIPMENT_SLOTS,
+		EQUIPMENT_GAPS: EQUIPMENT_GAPS,
+		EQUIPMENT_ICON_INSET: EQUIPMENT_ICON_INSET,
 		EQUIPMENT_SLOT_WIDTH: EQUIPMENT_SLOT_WIDTH,
 		EQUIPMENT_SLOT_HEIGHT: EQUIPMENT_SLOT_HEIGHT,
 		equipmentSlotRect: equipmentSlotRect,

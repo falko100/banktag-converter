@@ -69,7 +69,7 @@ the RuneLite export to copy across by hand.
 | `netlify.toml` | Netlify config — publishes the repo root, sets security headers |
 | `setup.html` / `setup.js` | Screenshot reader (experimental) |
 | `matcher.js` | Item recognition from a slot crop |
-| `align.js` | Finds the real item grid in a screenshot |
+| `align.js` | Finds the item grid in a screenshot, from scratch |
 | `gear.js` | Equipment + inventory to bank grid positions |
 | `tools/` | Rebuilds the item signature database |
 | `data/` | The item signature database (gzipped, unpacked in the browser) |
@@ -93,8 +93,9 @@ falls back to showing the raw item id in each slot.
 
 `setup.html` reads a gear setup from two phone screenshots — worn equipment and
 inventory — matches every slot against the full item list, and lays the result out
-as a bank tag. Upload, automatic grid detection, crop, match, per-slot correction
-with search, and both output formats.
+as a bank tag. **Both grids are found automatically**: choose two screenshots and
+nothing needs dragging. A box can still be drawn by hand if a crop looks off, and
+it snaps to the nearest grid.
 
 **It is an assistant, not an oracle.** On a real screenshot an inventory reads
 fairly well: consumables, food and runes usually come out right. Worn equipment is
@@ -146,6 +147,32 @@ test images — only against real phone screenshots:
   border ring (no change), and widening full-resolution re-scoring from 8 to 600
   candidates (identical answers — the shortlist was never the bottleneck).
 
+### Finding the grid without being told where it is
+
+Detection needs a different objective from the snapper that polishes a drawn box.
+Minimising boundary energy is fine once you are close, but across a whole
+screenshot it is degenerate — a blank stretch of wall has no boundary energy at
+all and scores perfectly. A global search also has to require that something is
+actually there: detail inside the cells, quiet seams between them. That, searched
+coarse-to-fine over a reduced copy with an integral image, lands within a pixel or
+two of the truth on a 2556×1179 screenshot in under two seconds, and `refineGrid`
+then nails the pitch.
+
+The equipment panel needs yet another objective, because it is not a grid and its
+slot squares put the strongest edges *on* the boundaries rather than in the gaps.
+What makes it recognisable is its four holes — beside the head slot and beside the
+legs slot — where nothing is ever drawn. So it is found by the quietest slot and
+the busiest hole rather than by averages: on a real screenshot the true panel
+scores 22.8 against 6.9, while the patch of chat text that otherwise wins manages
+9.9 against 44.9. By the averages the chat text looks better; by these it loses by
+a factor of thirteen. That measure finds the panel but is too jagged to align it,
+so a gentler centring score does the final nudge.
+
+Scale is the one thing the equipment search cannot pin down alone. The client
+draws both panels at the same size, so the pitch measured in the inventory
+screenshot tells it how big an equipment slot must be, and the equipment search is
+redone once the inventory has been read.
+
 ### Known gaps
 
 - Empty equipment slots draw a grey placeholder silhouette, which has real
@@ -154,6 +181,9 @@ test images — only against real phone screenshots:
   the two runes in the test screenshot score far worse than everything else.
 - Fine detail still separates poorly: a capped potion can score worse than an
   otherwise identical capless one.
+- Equipment detection reliably finds the panel but lands a few percent off on
+  size, which costs accuracy in a half that was already the weaker one. Dragging
+  the box by hand there still does better.
 
 ## Deploying
 
