@@ -138,6 +138,8 @@ test('keeps the right item in the shortlist after phone-scale resampling', () =>
 	}
 });
 
+// Refinement is not used when reading a screenshot - see the note on matcher.refine.
+// It behaves as designed on synthetic composites, which is what this covers.
 test('refining at full resolution ranks the true item first', () => {
 	const iconPixels = Object.fromEntries(FIXTURES.map((f) => [f.id, f.pixels]));
 

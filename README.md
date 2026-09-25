@@ -187,7 +187,10 @@ equipment screenshot.
 - Stacked items carry quantity text drawn over the icon, which corrupts the crop —
   the two runes in the test screenshot score far worse than everything else.
 - Fine detail still separates poorly: a capped potion can score worse than an
-  otherwise identical capless one.
+  otherwise identical capless one. On the test screenshot the helm and tassets of
+  a Blood Moon set come out eighth and ninth while the chestplate of the same set
+  is first, even though all three crops are pixel-identical to their icons — so
+  the shortlist holds the answer but the ranking does not surface it.
 - An equipment screenshot uploaded on its own, with no inventory to derive the
   panel from, falls back to searching for it and is placed less accurately.
 

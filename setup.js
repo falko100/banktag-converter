@@ -12,8 +12,7 @@
 
 	var ICON_W = 36, ICON_H = 32;
 	var ICON_URL = 'https://static.runelite.net/cache/item/icon/';
-	var SHORTLIST = 25;      // candidates kept from the signature pass
-	var REFINE = 25;         // of those, how many get re-scored at full resolution
+	var SHORTLIST = 30;      // candidates kept for the slot's alternatives list
 	var HANDLE = 14;         // px grab radius for a box corner
 
 	/*
@@ -40,7 +39,6 @@
 
 	var db = null;
 	var itemName = null;         // Map id -> name
-	var iconCache = {};          // id -> Uint8ClampedArray | null
 	var state = {
 		equipment: { image: null, box: null, pixels: null, detected: false, scaled: false },
 		inventory: { image: null, box: null, pixels: null, detected: false },
@@ -87,32 +85,6 @@
 			db = { meta: parts[0], blob: new Uint8Array(parts[1]) };
 			itemName = new Map(db.meta.items.map(function (item) { return [item[0], item[1]]; }));
 			return db;
-		});
-	}
-
-	/* Item icon pixels, for the full-resolution re-scoring pass. */
-	function iconPixels(id) {
-		if (Object.prototype.hasOwnProperty.call(iconCache, id)) {
-			return Promise.resolve(iconCache[id]);
-		}
-		return new Promise(function (resolve) {
-			var img = new Image();
-			img.crossOrigin = 'anonymous';   // needed to read the pixels back out
-			img.onload = function () {
-				var canvas = document.createElement('canvas');
-				canvas.width = ICON_W;
-				canvas.height = ICON_H;
-				var ctx = canvas.getContext('2d', { willReadFrequently: true });
-				ctx.drawImage(img, 0, 0, ICON_W, ICON_H);
-				try {
-					iconCache[id] = ctx.getImageData(0, 0, ICON_W, ICON_H).data;
-				} catch (err) {
-					iconCache[id] = null;    // tainted canvas, skip refinement for this one
-				}
-				resolve(iconCache[id]);
-			};
-			img.onerror = function () { iconCache[id] = null; resolve(null); };
-			img.src = ICON_URL + id + '.png';
 		});
 	}
 
@@ -541,23 +513,6 @@
 		return { described: described, ranked: ranked, imageData: imageData };
 	}
 
-	function refineCell(result) {
-		var top = result.ranked.slice(0, REFINE);
-		return Promise.all(top.map(function (c) { return iconPixels(c.id); }))
-			.then(function (pixels) {
-				var available = {};
-				top.forEach(function (c, i) { if (pixels[i]) { available[c.id] = pixels[i]; } });
-				if (!Object.keys(available).length) { return result.ranked; }
-
-				var refined = BankTagMatcher.preferCanonicalName(BankTagMatcher.refine(
-					top, result.imageData.data, ICON_W, ICON_H,
-					result.described.background, available, ICON_W, ICON_H
-				));
-				// Keep the rest of the shortlist behind the re-scored head of it.
-				return refined.concat(result.ranked.slice(REFINE));
-			});
-	}
-
 	function readItems() {
 		var status = byId('read-status');
 		status.textContent = 'Loading item database…';
@@ -590,7 +545,7 @@
 					var entry = {
 						key: job.key,
 						cell: job.cell,
-						candidates: ranked,
+						candidates: BankTagMatcher.preferCanonicalName(ranked),
 						chosenId: empty ? null : ranked[0].id,
 						empty: empty,
 						review: !empty && BankTagMatcher.needsReview(result.described, ranked)
@@ -605,7 +560,7 @@
 					setTimeout(step, 0);   // yield so the status can paint
 				};
 
-				if (empty) { finish(result.ranked); } else { refineCell(result).then(finish); }
+				finish(result.ranked);
 			}
 
 			step();
@@ -702,7 +657,7 @@
 				}
 			}
 		} else {
-			rows = entry.candidates.slice(0, 12).map(function (c) {
+			rows = entry.candidates.slice(0, 15).map(function (c) {
 				return { id: c.id, name: c.name };
 			});
 		}

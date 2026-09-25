@@ -261,9 +261,21 @@
 	}
 
 	/*
-	 * Re-scores candidates at full resolution: composite the candidate's icon
-	 * over the estimated background and measure how far the result is from what
-	 * the screenshot actually shows.
+	 * Re-scores candidates at full resolution: composite the candidate's icon over
+	 * the estimated background and measure how far the result is from what the
+	 * screenshot actually shows.
+	 *
+	 * NOT used when reading a screenshot, because measurement says it makes things
+	 * worse. It helped on synthetic composites - where the background really is
+	 * the flat colour this assumes - but on real screenshots the backdrop is a 3D
+	 * world or a textured stone slot square, and modelling it as one colour costs
+	 * more than the extra resolution gains. Turning it off moved Blood Moon
+	 * chestplate from third to first, Amulet of fury and Dual macuahuitl into
+	 * first, and stopped five inventory items being read as their "Blighted"
+	 * lookalikes.
+	 *
+	 * Kept because it is the measurement, and because a caller with a genuinely
+	 * flat background can still use it.
 	 *
 	 * `iconPixels` maps an item id to its raw 36x32 RGBA bytes.
 	 */
